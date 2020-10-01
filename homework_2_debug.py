@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-from scipy.optimize import line_search
+# from scipy.optimize import line_search
 
 
 def rosenbrock_fun(x):
@@ -95,36 +95,7 @@ def cubic_interp(alpha_0, alpha_1, xk, pk):
     return (-b + np.sqrt(b ** 2 - 3 * a * phi_prime(pk, xk))) / (3 * a)
 
 
-def interpolation(alpha_0, alpha_1, xk, pk, c1):
-    # # compute quadradic interp min.
-    # if alpha_0 == 0:
-    #     alpha_q = quadradic_interp(alpha_1, pk, xk)
-    #
-    #     # check the armijo condition.
-    #     if phi_function(alpha_q, pk, xk) > phi_function(0, pk, xk) + c1 * alpha_q * phi_prime(pk, xk):
-    #
-    #         # create cubic interpolation
-    #         alpha_c1 = cubic_interp(alpha_0, alpha_q, xk, pk)
-    #
-    #         # check the armijo condition.
-    #         if phi_function(alpha_c1, pk, xk) > phi_function(0, pk, xk) + c1 * alpha_c1 * phi_prime(pk, xk):
-    #
-    #             # create cubic interpolation
-    #             alpha_c2 = cubic_interp(alpha_q, alpha_c1, xk, pk)
-    #
-    #             # check the armijo condition.
-    #             if phi_function(alpha_c2, pk, xk) > phi_function(0, pk, xk) + c1 * alpha_c2 * phi_prime(pk, xk):
-    #
-    #                 # safeguard
-    #                 return hermite(alpha_c1, alpha_c2, pk, xk)
-    #             else:
-    #                 return alpha_c2
-    #         else:
-    #             return alpha_c1
-    #     else:
-    #         return alpha_q
-    # else:
-
+def interpolation(alpha_0, alpha_1, xk, pk):
     try:
         alpha_star = hermite(alpha_0, alpha_1, pk, xk)
     except:
@@ -132,27 +103,16 @@ def interpolation(alpha_0, alpha_1, xk, pk, c1):
     if phi_function(alpha_star, pk, xk) > phi_function(alpha_1, pk, xk) or \
             phi_function(alpha_star, pk, xk) > phi_function(alpha_0, pk, xk):
         return None
-        # try:
-        #     alpha_star1 = hermite(alpha_0=alpha_1, alpha_1=alpha_star, pk=pk, xk=xk)
-        # except:
-        #     alpha_star1 = alpha_1
-        # try:
-        #     alpha_star2 = hermite(alpha_0=alpha_0, alpha_1=alpha_star, pk=pk, xk=xk)
-        # except:
-        #     alpha_star2 = alpha_0
-        # if phi_function(alpha_star1, pk=pk, xk=xk) > phi_function(alpha_star2, pk=pk, xk=xk):
-        #     alpha_star = alpha_star1
-        # else:
-        #     alpha_star = alpha_star2
     if alpha_star <= 0:
         return None
-    alpha_range = np.linspace(alpha_0, alpha_1, 25)
-    phi_vals = np.zeros(25)
-    for ii in range(25):
-        phi_vals[ii] = phi_function(alpha_range[ii], pk, xk)
-    plt.plot(alpha_range, phi_vals)
-    plt.scatter(alpha_star, phi_function(alpha_star, pk, xk))
-    plt.show()
+
+    # alpha_range = np.linspace(alpha_0, alpha_1, 25)
+    # phi_vals = np.zeros(25)
+    # for ii in range(25):
+    #     phi_vals[ii] = phi_function(alpha_range[ii], pk, xk)
+    # plt.plot(alpha_range, phi_vals)
+    # plt.scatter(alpha_star, phi_function(alpha_star, pk, xk))
+    # plt.show()
     return hermite(alpha_0, alpha_1, pk, xk)
 
 
@@ -161,15 +121,13 @@ def zoom(alpha_low, alpha_high, xk, pk, c1, c2):
     max_iter = 10
     k = 0
     while max_iter > k:
-        if alpha_low == alpha_high:
+        if abs(alpha_low - alpha_high) < 1e-8:  # safeguard.
             return None
         if phi_function(alpha_high, pk, xk) < phi_function(alpha_low, pk, xk):
             return None
-        if phi_prime(pk, xk + alpha_low * pk) * (alpha_high - alpha_low) >= 0:
-            return None
 
         # interpolate to find xj between alpha_low and alpha_high
-        alpha_j = interpolation(alpha_0=alpha_low, alpha_1=alpha_high, xk=xk, pk=pk, c1=c1)
+        alpha_j = interpolation(alpha_0=alpha_low, alpha_1=alpha_high, xk=xk, pk=pk)
 
         # if interpolation fails:
         if alpha_j is None:
@@ -321,5 +279,5 @@ def find_local_minimum(x0, c1, c2, alpha, p, tol=1e-8, print_num=None, method="s
 
 
 if __name__ == "__main__":
-    print(find_local_minimum(x0=[1.2, 1.2], c1=1e-4, c2=0.9, alpha=1, p=0.5, tol=1e-8, print_num=23, method="sd",
+    print(find_local_minimum(x0=[1.2, 1.2], c1=1e-4, c2=0.9, alpha=1, p=0.5, tol=1e-8, print_num=23, method="newton",
                              save_xk=True))
