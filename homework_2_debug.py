@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-# from scipy.optimize import line_search
+import random
 
 
 def rosenbrock_fun(x):
@@ -100,12 +100,11 @@ def interpolation(alpha_0, alpha_1, xk, pk):
         alpha_star = hermite(alpha_0, alpha_1, pk, xk)
     except:
         return None
-    if phi_function(alpha_star, pk, xk) > phi_function(alpha_1, pk, xk) or \
-            phi_function(alpha_star, pk, xk) > phi_function(alpha_0, pk, xk):
-        return None
     if alpha_star <= 0:
         return None
-
+    # if phi_function(alpha_star, pk, xk) > phi_function(alpha_1, pk, xk) or \
+    #         phi_function(alpha_star, pk, xk) > phi_function(alpha_0, pk, xk):
+    #     return None --> accounting for concave poly.
     # alpha_range = np.linspace(alpha_0, alpha_1, 25)
     # phi_vals = np.zeros(25)
     # for ii in range(25):
@@ -193,7 +192,7 @@ def my_line_search(c1, c2, pk, xk, old_x=None, alpha_0=0, alpha_max=1, method="s
         if phi_prime_alpha_i >= 0:
             return zoom(alpha_low=alpha_i, alpha_high=alpha_vec[i - 1], xk=xk, pk=pk, c1=c1, c2=c2)
 
-        alpha_vec.append(zoom(alpha_low=alpha_i, alpha_high=alpha_max, xk=xk, pk=pk, c1=c1, c2=c2))
+        alpha_vec.append(random.uniform(alpha_i, alpha_max))
         i += 1
 
 
@@ -249,17 +248,7 @@ def find_local_minimum(x0, c1, c2, alpha, p, tol=1e-8, print_num=None, method="s
             else:
                 old_x = None
             alpha = my_line_search(c1=c1, c2=c2, pk=pk, xk=xk, old_x=old_x, alpha_0=0, alpha_max=1, method=method)
-            # alpha = line_search(rosenbrock_fun, rosenbrock_gradient, xk=np.array(xk), pk=pk, c1=c1, c2=c2, amax=1)[0]
-            # if alpha is None:
-            #     print("WARNING!!!-------------------------------------------------------------------")
-            #     alpha_prev = p * alpha_prev
-            #     alpha = alpha_prev
-            # print("alpha = ", alpha)
-            # print("xk = ", xk)
-            # print("f = ", rosenbrock_fun(xk))
-            # print("k =", k)
             xk_next = xk + alpha * pk
-            # print("found line search\n")
 
         xk = xk_next
         alpha = alpha_original
@@ -279,5 +268,18 @@ def find_local_minimum(x0, c1, c2, alpha, p, tol=1e-8, print_num=None, method="s
 
 
 if __name__ == "__main__":
-    print(find_local_minimum(x0=[1.2, 1.2], c1=1e-4, c2=0.9, alpha=1, p=0.5, tol=1e-8, print_num=23, method="newton",
-                             save_xk=True))
+    res_2_sd = find_local_minimum(x0=[1.2, 1.2], c1=1e-4, c2=0.9, alpha=1, p=0.5, tol=1e-8, print_num=23, method="sd",
+                                  save_xk=True)
+
+    f_res_2_sd = np.ones(int(len(res_2_sd[-1]) / 2))
+
+    for ii in range(0, int(len(res_2_sd[-1]) / 2)):
+        f_res_2_sd[ii] = rosenbrock_fun([res_2_sd[-1][2 * ii], res_2_sd[-1][2 * ii + 1]])
+
+    fig, ax = plt.subplots(1, 1)
+    ax.scatter(np.arange(len(f_res_2_sd)), np.log10(f_res_2_sd), 2)
+
+    ax.set_title("Rosenbrock function, ic = [-1.2, 1], SD.")
+    ax.set_xlabel("# of iterations")
+    ax.set_ylabel("log10(f)")
+    plt.show()
