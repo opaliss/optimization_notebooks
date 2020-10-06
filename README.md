@@ -6,3 +6,4 @@ Topics covered:
 - Step length selection. 
 - Newton's method.
 - Steepest Gradient Descent. 
+- Trust region, dogleg method. 
