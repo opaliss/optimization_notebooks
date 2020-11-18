@@ -1,54 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from rosenbock2Nd import rosenbock2Nd
 import random
-
-
-def rosenbrock_fun(x):
-    x1, x2 = x
-    """ This function returns the output of the Rosenbrock function."""
-    return 100 * ((x2 - x1 ** 2) ** 2) + (1 - x1) ** 2
-
-
-def rosenbrock_gradient(x):
-    x1, x2 = x
-    """ return [df/dx1 df/dx2]"""
-    dfx1 = -400 * x2 * x1 + 400 * (x1 ** 3) - 2 + 2 * x1
-    dfx2 = 200 * x2 - 200 * (x1 ** 2)
-    return np.array([dfx1, dfx2])
-
-
-def rosenbrock_hessian(x):
-    x1, x2 = x
-    """ return [d2f/dx1^2   d2f/dx1dx2
-                d2f/dx1dx2  d2f/dx2^2]"""
-    h = np.zeros((2, 2))
-    h[0, 0] = -400 * x2 + 1200 * (x1 ** 2) + 2
-    h[0, 1] = -400 * x1
-    h[1, 0] = -400 * x1
-    h[1, 1] = 200
-    return h
-
-
-def pk_steepest_descent(gradient):
-    """ search direction for steepest decent."""
-    return np.array(-1 * gradient / np.linalg.norm(gradient))
-
-
-def pk_newton(gradient, hessian):
-    """ search direction for Newton's method."""
-    h_inv = np.linalg.inv(hessian)
-    return -np.matmul(h_inv, gradient)
 
 
 def phi_function(alpha, pk, xk):
     """ phi(alpha) = f(xk + alpha*pk)"""
     x = xk + alpha * pk
-    return rosenbrock_fun(x)
+    return rosenbock2Nd(x, 0)
 
 
 def phi_prime(pk, xk):
-    return np.dot(rosenbrock_gradient(xk), pk)
+    return rosenbock2Nd(xk, 1) @ pk
 
 
 def hermite(alpha_0, alpha_1, pk, xk):
@@ -160,7 +124,7 @@ def my_line_search(c1, c2, pk, xk, old_x=None, alpha_0=0, alpha_max=1, method="s
 
     # choose alpha_1
     if old_x is not None and dphi0 != 0 and method == "sd":
-        alpha_1 = min(1.0, 1.01 * 2 * (rosenbrock_fun(xk) - rosenbrock_fun(old_x)) / dphi0)
+        alpha_1 = min(1.0, 1.01 * 2 * (rosenbock2Nd(xk, 0) - rosenbock2Nd(old_x, 0)) / dphi0)
     else:
         alpha_1 = 1.0
 
@@ -195,91 +159,80 @@ def my_line_search(c1, c2, pk, xk, old_x=None, alpha_0=0, alpha_max=1, method="s
         alpha_vec.append(random.uniform(alpha_i, alpha_max))
         i += 1
 
+def rosen(x):
+    """Generalized n-dimensional version of the Rosenbrock function"""
+    return sum(100*(x[1:]-x[:-1]**2.0)**2.0 +(1-x[:-1])**2.0)
 
-def find_local_minimum(x0, c1, c2, alpha, p, tol=1e-8, print_num=None, method="sd", save_xk=True):
-    """ Find the local minimum point x* using backtracking line search that will satisfy Armijo-Goldstein inequality.
-    The avilable methods: Newton and Steepest Descent. Default is Steepest descent.
-    x0 - initial guess for x*.
-    c1 - the slope of Armijo-Goldstein line.
-    alpha - initial step size.
-    p - modify alpha scaler.
-    tol - tolerence. the iterative method will stop when ||gradient|| < tol"""
+def rosen_der(x):
+    """Derivative of generalized Rosen function."""
+    xm = x[1:-1]
+    xm_m1 = x[:-2]
+    xm_p1 = x[2:]
+    der = np.zeros_like(x)
+    der[1:-1] = 200*(xm-xm_m1**2) - 400*(xm_p1 - xm**2)*xm - 2*(1-xm)
+    der[0] = -400*x[0]*(x[1]-x[0]**2) - 2*(1-x[0])
+    der[-1] = 200*(x[-1]-x[-2]**2)
+    return der
 
-    xk = x0
-    k = 0  # iteration number
-    alpha_original = alpha
+def bfgs_method(x0, eps=1e-6, H0=np.eye(18),c1=1e-4):
+    """ x0 - initial starting point (dim2)
+        eps - default is 1e-8
+        H0 - default is the identity matrix.
+    """
+    k = 0  # initialize num of outer iterations.
+    inner_k = 0  # initialize inner k iteration.
+    old_xk = None
+    alpha_original = 1
+    alpha = np.copy(alpha_original)
+    xk = x0  # intitialize x.
+    Hk = H0  # initialize H, positive definite matrix.
+    I = np.eye(len(x0))  # idenitity matrix of 2 by 2.
 
-    if save_xk:
-        xk_arr = np.array([xk])
+    alpha_vec = []
+    f_vec = []
+    grad_vec = []
+    inner_k = []
+    conv_c = []
 
-    while np.linalg.norm(rosenbrock_gradient(xk)) > tol:
-        """ find the next iteration xk+1"""
-        gradient = rosenbrock_gradient(xk)
+    while np.linalg.norm(rosen_der(xk)) > eps:
+        pk = -Hk @ rosen_der(xk)
 
-        if method == "sd":
-            pk = pk_steepest_descent(gradient)
+        xk_next = xk + alpha * pk
+        ink = 0
+        print(xk)
+        while rosen(xk_next) > rosen(xk) + c1 * alpha * (pk.T @ rosen_der(xk)):
+            """ find a step size that will satisfy Armijo-Goldstein inequality. Modify alpha. """
+            alpha = 0.1* alpha
+            xk_next = xk + alpha * pk
+            ink += 1
 
-        if method == "newton":
-            hessian = rosenbrock_hessian(xk)
-            pk = pk_newton(gradient, hessian)
-
-        if print_num is not None:
-            if 0 <= k <= 6:
-                if k == 0:
-                    print("***The first 6 iterations:*** \n")
-                print("Iteration #" + str(k) + ", x" + str(k) + " = " + str(xk))
-                print("||gradient|| = " + str(np.linalg.norm(gradient)))
-                print("f = " + str(rosenbrock_fun(xk)) + "\n")
-
-            if print_num - 5 <= k <= print_num and k > 6:
-                if k == print_num - 5 or k == 7:
-                    print("***The last 6 iterations:*** \n")
-                print("Iteration #" + str(k) + ", x" + str(k) + " = " + str(xk))
-                print("||gradient|| = " + str(np.linalg.norm(gradient)))
-                print("f = " + str(rosenbrock_fun(xk)) + "\n")
+        inner_k.append(abs(int(ink)))
 
         xk_next = xk + alpha * pk
 
-        while rosenbrock_fun(xk_next) > rosenbrock_fun(xk) + c1 * alpha * np.matmul(pk.T, gradient):
-            """ find a step size that will satisfy Armijo-Goldstein inequality. Modify alpha. """
-            # print("call line search")
-            if k > 1:
-                old_x = xk_arr[-4:-2]
-            else:
-                old_x = None
-            alpha = my_line_search(c1=c1, c2=c2, pk=pk, xk=xk, old_x=old_x, alpha_0=0, alpha_max=1, method=method)
-            xk_next = xk + alpha * pk
+        sk = xk_next - xk
 
-        xk = xk_next
-        alpha = alpha_original
-        k = k + 1
+        yk = rosen_der(xk_next) - rosen_der(xk)
 
-        if save_xk:
-            xk_arr = np.append(xk_arr, [xk])
+        rho = 1 / (yk.T @ sk)
 
-    print("Iteration #" + str(k) + ", x" + str(k) + " = " + str(xk))
-    print("||gradient|| = " + str(np.linalg.norm(rosenbrock_gradient(xk))))
-    print("f = " + str(rosenbrock_fun(xk)) + "\n")
+        Hk = np.copy((I - rho * sk @ yk.T) @ Hk @ (I - rho * yk @ sk.T) + rho * sk @ sk.T)
 
-    if save_xk:
-        return xk, k, xk_arr
+        old_xk = np.copy(xk)
+        xk = np.copy(xk_next)
 
-    return xk, k
+        alpha_vec.append(alpha)
+        f_vec.append(rosen(xk))
+        grad_vec.append(np.linalg.norm(rosen_der(xk)))
+        alpha = np.copy(alpha_original)
+        print(f_vec[-1])
+
+        k += 1
+
+    return xk, k, inner_k, alpha_vec, f_vec, grad_vec
 
 
 if __name__ == "__main__":
-    res_2_sd = find_local_minimum(x0=[1.2, 1.2], c1=1e-4, c2=0.9, alpha=1, p=0.5, tol=1e-8, print_num=23, method="sd",
-                                  save_xk=True)
-
-    f_res_2_sd = np.ones(int(len(res_2_sd[-1]) / 2))
-
-    for ii in range(0, int(len(res_2_sd[-1]) / 2)):
-        f_res_2_sd[ii] = rosenbrock_fun([res_2_sd[-1][2 * ii], res_2_sd[-1][2 * ii + 1]])
-
-    fig, ax = plt.subplots(1, 1)
-    ax.scatter(np.arange(len(f_res_2_sd)), np.log10(f_res_2_sd), 2)
-
-    ax.set_title("Rosenbrock function, ic = [-1.2, 1], SD.")
-    ax.set_xlabel("# of iterations")
-    ax.set_ylabel("log10(f)")
-    plt.show()
+    x0 = rosenbock2Nd(np.array([1.2, 1.2]), -1)
+    print("initial f(x0) = ", rosenbock2Nd(x0, 0))
+    xk, k, inner_k, alpha_vec, f_vec, grad_vec = bfgs_method(x0)
